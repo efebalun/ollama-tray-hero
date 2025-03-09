@@ -11,6 +11,19 @@ Ollama Tray Hero is a desktop application built with Electron that allows you to
 - Copy to clipboard functionality for agent messages
 - Color scheme selection (System, Light, Dark)
 
+## Installation
+
+### Download Pre-built Executable
+
+You can download the latest pre-built executable for Windows directly from the [GitHub Releases](https://github.com/efebalun/TrayHeroV1/releases) page.
+
+1. Go to the [Releases page](https://github.com/efebalun/TrayHeroV1/releases)
+2. Download the latest `.exe` installer file
+3. Run the installer and follow the on-screen instructions
+4. The application will start automatically after installation
+
+No coding or build steps required!
+
 ## Screenshots
 
 ![Screenshot](assets/screenshot-01.png)
