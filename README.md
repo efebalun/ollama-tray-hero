@@ -16,6 +16,22 @@ Ollama Tray Hero is a desktop application built with Electron that allows you to
 ![Screenshot](assets/screenshot-01.png)
 ![Screenshot](assets/screenshot-02.png)
 
+## Usage
+
+### Global Shortcut
+
+- Press `Shift+Space` to toggle the chat window.
+
+### System Tray
+
+- Right-click on the system tray icon to access the context menu with options to show/hide the chat window and open settings.
+
+### Settings
+
+- Open the settings window from the system tray context menu or the settings link in the chat window toolbar.
+- Configure the API URL, select the model, and choose the color scheme (System, Light, Dark).
+- Clear chat history from the settings window.
+
 ## Prerequisites
 
 - Node.js (v14 or later)
@@ -53,22 +69,6 @@ $ npm run build
 ```
 
 The built application will be located in the `dist` directory.
-
-## Usage
-
-### Global Shortcut
-
-- Press `Shift+Space` to toggle the chat window.
-
-### System Tray
-
-- Right-click on the system tray icon to access the context menu with options to show/hide the chat window and open settings.
-
-### Settings
-
-- Open the settings window from the system tray context menu or the settings link in the chat window toolbar.
-- Configure the API URL, select the model, and choose the color scheme (System, Light, Dark).
-- Clear chat history from the settings window.
 
 ## File Structure
 
