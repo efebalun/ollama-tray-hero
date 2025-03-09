@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ollama Tray Hero</title>
+    <link rel="stylesheet" href="main.css">
+    <script src="marked.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="chat-container"></div>
+        <div id="input-container">
+            <textarea
+                id="message-input"
+                placeholder="Type your message..."
+                rows="1"
+                autofocus
+            ></textarea>
+            <button id="send-button">Send</button>
+        </div>
+        <div id="toolbar-container">
+            <div id="model-info">
+                Model: <span id="current-model">Loading...</span>
+            </div>
+            <a href="javascript:void(0);" id="settings-link">Settings</a>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const currentModelSpan = document.getElementById('current-model');
+        const settingsLink = document.getElementById('settings-link');
+
+        // Open settings window
+        settingsLink.addEventListener('click', async () => {
+            await window.electronAPI.openSettings();
+        });
+
+        // Display current model
+        async function updateCurrentModel() {
+            try {
+                const settings = await window.electronAPI.getSettings();
+                currentModelSpan.textContent = settings.selectedModel || 'Not set';
+            } catch (error) {
+                console.error('Failed to get current model:', error);
+                currentModelSpan.textContent = 'Unknown';
+            }
+        }
+
+        function addMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
+            if (isUser) {
+                messageDiv.textContent = content;
+            } else {
+                console.log('Rendering Markdown:', content);
+                messageDiv.innerHTML = marked.parse(content);
+            }
+            chatContainer.appendChild(messageDiv);
+
+            // Add copy to clipboard icon for assistant messages
+            if (!isUser) {
+                const toolbar = document.createElement('div');
+                toolbar.className = 'toolbar';
+                messageDiv.appendChild(toolbar);
+
+                const copyIcon = document.createElement('span');
+                copyIcon.className = 'copy-button';
+                copyIcon.textContent = '+ Copy';
+                copyIcon.style.cursor = 'pointer';
+                copyIcon.addEventListener('click', () => {
+                    navigator.clipboard.writeText(content).then(() => {
+                        copyIcon.textContent = '✔ Copied';
+                        setTimeout(() => {
+                            copyIcon.textContent = '+ Copy';
+                        }, 1000);
+                    });
+                });
+                toolbar.appendChild(copyIcon);
+            }
+
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addSystemMessage(content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'system-message';
+            messageDiv.textContent = content;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function clearChat() {
+            chatContainer.innerHTML = '';
+            // addSystemMessage('Chat history cleared');
+        }
+
+        // Auto-resize textarea based on content
+        function autoResizeTextarea() {
+            messageInput.style.height = 'auto';
+            
+            // Set the height based on scrollHeight (content height)
+            const newHeight = Math.min(messageInput.scrollHeight, 250); // 250px is max height (about 10 rows)
+            messageInput.style.height = newHeight + 'px';
+
+            // Add overflow-y if content exceeds max height
+            messageInput.style.overflowY = messageInput.scrollHeight > 250 ? 'auto' : 'hidden';
+        }
+
+        // Initialize textarea height and add event listeners for auto-resize
+        messageInput.addEventListener('input', autoResizeTextarea);
+        messageInput.addEventListener('focus', autoResizeTextarea);
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Disable message area and send button
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+            sendButton.textContent = 'Generating...';
+
+            try {
+                const response = await window.electronAPI.sendMessage(message);
+                addMessage(message, true);
+                addMessage(response, false);
+                messageInput.value = '';
+                // Reset height after clearing
+                messageInput.style.height = 'auto';
+            } catch (error) {
+                addMessage('Error: Could not connect to Ollama', false);
+            } finally {
+                // Re-enable message area and send button
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send';
+                messageInput.focus();
+            }
+        }
+
+        // Listen for history-cleared event from main process
+        window.electronAPI.onHistoryCleared(() => {
+            clearChat();
+        });
+
+        // Listen for model changed event
+        window.electronAPI.onSettingsChanged(() => {
+            updateCurrentModel();
+        });
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Auto focus the input field when the window is shown
+        window.addEventListener('focus', () => {
+            messageInput.focus();
+        });
+
+        // Load chat history when page loads
+        async function loadChatHistory() {
+            try {
+                const history = await window.electronAPI.getHistory();
+                if (history && history.length > 0) {
+                    // Clear any existing messages first
+                    chatContainer.innerHTML = '';
+                    
+                    // Add each message from history
+                    history.forEach(msg => {
+                        if (msg.role === 'user') {
+                            addMessage(msg.content, true);
+                        } else if (msg.role === 'assistant') {
+                            addMessage(msg.content, false);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load chat history:', error);
+                addSystemMessage('Failed to load chat history');
+            }
+        }
+
+        // Load history when page initializes
+        document.addEventListener('DOMContentLoaded', () => {
+            loadChatHistory();
+            updateCurrentModel();
+            // Initialize textarea height
+            autoResizeTextarea();
+        });
+    </script>
+</body>
+</html>

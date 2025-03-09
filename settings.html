@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings</title>
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+    <div id="app">
+        <div class="form">
+            <div class="form-group">
+                <label>
+                    API Settings
+                </label>
+                <input type="text" id="api-url" placeholder="http://localhost:11434">
+            </div>
+            <div class="form-group">
+                <label>
+                    Model Settings
+                </label>
+                <div class="input-group">
+                    <select id="model-select"></select>
+                    <button id="reload-models-btn" class="button">↻</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    Color Scheme
+                </label>
+                <select id="color-scheme-select">
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    Data Management
+                </label>
+                <button id="clear-history-btn" class="button">Clear Chat History</button>
+                <div id="clear-status" class="success-message" style="display: none;"></div>
+            </div>
+            <div class="form-group">
+                <label>
+                    Always on top
+                </label>
+                <select id="always-on-top-select">
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    Shortcut
+                </label>
+                <input type="text" id="shortcut-input" placeholder="Shortcut (e.g., Win+Space)">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const apiUrlInput = document.getElementById('api-url');
+        const modelSelect = document.getElementById('model-select');
+        const reloadModelsBtn = document.getElementById('reload-models-btn');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+        const clearStatus = document.getElementById('clear-status');
+        const colorSchemeSelect = document.getElementById('color-scheme-select');
+        const alwaysOnTopSelect = document.getElementById('always-on-top-select');
+        const shortcutInput = document.getElementById('shortcut-input');
+        
+        // Track current settings
+        let currentSettings = {};
+
+        // Load settings from main process
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Load API URL
+                currentSettings = await window.electronAPI.getSettings();
+                apiUrlInput.value = currentSettings.apiUrl || 'http://localhost:11434';
+                
+                // Load available models
+                await loadModels();
+
+                // Set color scheme
+                colorSchemeSelect.value = currentSettings.colorScheme || 'system';
+
+                // Set always on top
+                alwaysOnTopSelect.value = currentSettings.alwaysOnTop || 'yes';
+
+                // Load shortcut
+                shortcutInput.value = currentSettings.shortcut || 'Win+Space';
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        });
+
+        // Save API URL when it changes
+        apiUrlInput.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.saveSetting('apiUrl', apiUrlInput.value);
+            } catch (error) {
+                console.error('Failed to save API URL:', error);
+            }
+        });
+
+        // Save selected model when it changes
+        modelSelect.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.saveSetting('selectedModel', modelSelect.value);
+                console.log('Model saved:', modelSelect.value);
+            } catch (error) {
+                console.error('Failed to save selected model:', error);
+            }
+        });
+
+        // Save color scheme when it changes
+        colorSchemeSelect.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.saveSetting('colorScheme', colorSchemeSelect.value);
+                console.log('Color scheme saved:', colorSchemeSelect.value);
+            } catch (error) {
+                console.error('Failed to save color scheme:', error);
+            }
+        });
+
+        // Save always on top when it changes
+        alwaysOnTopSelect.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.saveSetting('alwaysOnTop', alwaysOnTopSelect.value);
+                console.log('Always on top saved:', alwaysOnTopSelect.value);
+            } catch (error) {
+                console.error('Failed to save always on top:', error);
+            }
+        });
+
+        // Save shortcut when it changes
+        shortcutInput.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.saveSetting('shortcut', shortcutInput.value);
+                console.log('Shortcut saved:', shortcutInput.value);
+            } catch (error) {
+                console.error('Failed to save shortcut:', error);
+            }
+        });
+
+        // Load available models from API
+        async function loadModels() {
+            try {
+                // Show loading state
+                modelSelect.innerHTML = '<option>Loading models...</option>';
+                
+                const models = await window.electronAPI.getAvailableModels();
+                
+                // Clear and populate the select box
+                modelSelect.innerHTML = '';
+                
+                if (models && models.length > 0) {
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        modelSelect.appendChild(option);
+                    });
+                    
+                    // Set the current model as selected
+                    const settings = await window.electronAPI.getSettings();
+                    if (settings.selectedModel) {
+                        modelSelect.value = settings.selectedModel;
+                    }
+                } else {
+                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                }
+            } catch (error) {
+                console.error('Failed to load models:', error);
+                modelSelect.innerHTML = '<option value="">Error loading models</option>';
+            }
+        }
+
+        // Reload models button
+        reloadModelsBtn.addEventListener('click', async () => {
+            await loadModels();
+        });
+
+        // Clear chat history button
+        clearHistoryBtn.addEventListener('click', async () => {
+            try {
+                const result = await window.electronAPI.clearHistory();
+                
+                if (result) {
+                    clearStatus.textContent = 'Chat history cleared successfully!';
+                    clearStatus.className = 'success-message';
+                    clearStatus.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        clearStatus.style.display = 'none';
+                    }, 3000);
+                } else {
+                    throw new Error('Failed to clear history');
+                }
+            } catch (error) {
+                clearStatus.textContent = 'Error clearing chat history.';
+                clearStatus.className = 'error-message';
+                clearStatus.style.display = 'block';
+                
+                setTimeout(() => {
+                    clearStatus.style.display = 'none';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
