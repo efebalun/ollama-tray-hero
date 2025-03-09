@@ -1,6 +1,6 @@
-# Ollama Tray Hero Desktop Helper
+# Ollama Tray Hero
 
-Ollama Tray Hero Desktop Helper is a desktop application built with Electron that allows you to chat with the Ollama model. The application features a floating chat window, system tray integration, and settings for API and model configuration.
+Ollama Tray Hero is a desktop application built with Electron that allows you to chat with the Ollama model. The application features a floating chat window, system tray integration, and settings for API and model configuration.
 
 ## Features
 
