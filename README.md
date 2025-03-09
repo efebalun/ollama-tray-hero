@@ -42,8 +42,8 @@ Ollama Tray Hero is a desktop application built with Electron that allows you to
 1. Clone the repository:
 
 ```sh
-$ git clone <repository-url>
-$ cd DesktopHelperV0
+$ git clone https://github.com/efebalun/TrayHeroV1.git
+$ cd TrayHeroV1
 ```
 
 2. Install the dependencies:
