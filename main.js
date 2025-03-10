@@ -1,18 +1,35 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Tray,
+  Menu,
+  nativeImage,
+  nativeTheme
+} = require('electron');
 const path = require('path');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const fs = require('fs');
 const Store = require('electron-store');
 
+// Constants
+const defaultSettings = {
+  apiUrl: 'http://localhost:11434',
+  selectedModel: 'llama3.2',
+  colorScheme: 'system',
+  runOnStartup: 'yes',
+  alwaysOnTop: 'yes',
+  shortcut: 'Shift+Space'
+};
+
 // Initialize electron-store for persistent storage
 const store = new Store({
+  firstRun: true,
   name: 'ollama-tray-hero-data',
   defaults: {
     conversationHistory: [],
-    settings: {
-      apiUrl: 'http://localhost:11434',
-      selectedModel: 'llama3.2'
-    }
+    settings: defaultSettings,
   }
 });
 
@@ -31,14 +48,13 @@ let settingsWindow = null;
 let tray = null;
 
 // Create a simple base64 icon for the tray
-const iconBase64 = `iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAjpJREFUWEfVl8FLVEEcxz+TK7Si4iHUg3jpHCRkENRBTCjRg5IQ1KGrG5HoIaQOewkTQzRJD3rwDxBEFJLsVoegwCCvQUQUdemQuMFKE7NvR99O7+2beftca25v3vx+38/vN7+Z934CY8gsKb6xiqDPfFfh8yZ7DIhlfvn9CP+DHGb9CIRN7hdinh49eQAgM/wE6iuM0tZ8V8zToBYXAOQwWwgu21onsk6yIRboF/IWJ6kjl4hTVyfN1AqZ4RlwxdU2kfUqCzKDTMRZTCf/IcCTPIyk4fd+acwnUjCbgzu1Trlwy4ASr0nB9CX48KpU6PRFGH3pgTlA2AOUE9coMSDsAKLEO67B9oqH4QgRDRAlrkRnct6WzBVvWAeI8gDlxNvOQvcYnL9ZWguTnfDprXUmwgHGt0GJBBWcmr+xCEpMZ+Dja5jpCi5MBaTXGmckHOCp9CIJMpz4Co2tcLv4LfPXgHkI772B9nOHaysCSDfBg/fQ1HboZuoCqOjDRmwAbai3oGsEBqdAXTjm+LIDD8/8Pa+L8fM7mOgIRCxfhHN5T9BfByoLj394ztbG4fmj4NgtT0L0MQyC6M3C1fvhN56luCKPBlCrTIj6U3B9AZaGwtNueSXbAQRBBCXeIXJtbg8QBRFD3H4L/NGq7bh7XJ/j8NMe+43bFsSWCTcUVWpGwgg2RaEV+07+CIKLdrlHWjcm1WjJTKBCi/ZvtGYarSotWrElO7iIzLwUW7XVxLslyQYtDIgsJf/zfwDBuAF1EsSNPAAAAABJRU5ErkJggg==`;
+const iconBase64 = `iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAEoSURBVHgBnZMvT8NAGMZ/d8GAImARNfPgcGxIFIR5hgPMyjcYn4DhQAEfgGQTYFuJ448EUxIsUDe3470eDenabpc9yaXttb+nz3vvnUJkjghQXMtYl8dlZskwkHGqLklUBmuevMCiUsZsaIHP54DJGEmt5WbX6/N2vzwnJWt81GhCq+uuEynqDTY7sCiV7cufw8jN2etEkoV6gwMY/cBdCK8DB/db8B57GKwELu4ohZehg6KLEmylzIl0NNeabIPGFuz0YOmvMY83Mm7hK4HvpGRQTNCWjq4G/3BWSscZP5xVGhQT5LILt911wNUefD5Tp+ou2IWz9d/3psK5QVr55i2Wuj+YJWWOiWRHNZlHY4ZaVuCwNsV0WSbU9kjaU5UdUV/QEFvGsr/3WFmf+l4G5gAAAABJRU5ErkJggg==`;
 
 function createWindow() {
-  const settings = getSettings();
-  const alwaysOnTop = settings.alwaysOnTop === 'no' ? false : true;
+  const firstRun = store.get('firstRun', true);
 
-  console.log(`Always on top setting: ${settings.alwaysOnTop}`);
-  console.log(`Applying always on top: ${alwaysOnTop}`);
+  const settings = getSettings();
+  const alwaysOnTop = settings.alwaysOnTop === 'yes' ? true : false;
 
   mainWindow = new BrowserWindow({
     width: 600,
@@ -54,11 +70,17 @@ function createWindow() {
     }
   });
 
-  // Remove the menu bar
   mainWindow.setMenu(null);
-
   mainWindow.loadFile('index.html');
-  mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating');
+
+  mainWindow.once('ready-to-show', () => {
+    if (firstRun) {
+      mainWindow.webContents.send('first-run');
+      mainWindow.show();
+      store.set('firstRun', false);
+    }
+    applyColorScheme();
+  });
 
   // Open the DevTools only in development mode
   if (process.env.NODE_ENV === 'development') {
@@ -84,7 +106,7 @@ function createSettingsWindow() {
 
   settingsWindow = new BrowserWindow({
     width: 500,
-    height: 500, // Adjusted height to fit new content
+    height: 500,
     resizable: true,
     minimizable: false,
     maximizable: false,
@@ -104,8 +126,13 @@ function createSettingsWindow() {
 
   settingsWindow.once('ready-to-show', () => {
     settingsWindow.show();
-    applyColorScheme(); // Apply color scheme when settings window is ready
+    applyColorScheme();
   });
+
+  // Open the DevTools only in development mode
+  if (process.env.NODE_ENV === 'development') {
+    settingsWindow.webContents.openDevTools();
+  }
 
   settingsWindow.on('closed', () => {
     settingsWindow = null;
@@ -120,7 +147,7 @@ function createTray() {
   tray = new Tray(icon);
   const contextMenu = Menu.buildFromTemplate([
     { 
-      label: 'Show/Hide (Win+Space)', 
+      label: 'Show/Hide', 
       click: () => {
         toggleWindow();
       }
@@ -159,8 +186,18 @@ function toggleWindow() {
 
 function applyColorScheme() {
   const settings = getSettings();
-  const colorScheme = settings.colorScheme || 'system';
-  
+  const systemColorScheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  const settingsColorScheme = settings.colorScheme;
+
+  let colorScheme = settingsColorScheme || systemColorScheme;
+  if (colorScheme === 'system') {
+    colorScheme = systemColorScheme;
+  }
+
+  console.log(`System color scheme: ${systemColorScheme}`);
+  console.log(`Settings color scheme: ${settings.colorScheme}`);
+  console.log(`Applying color scheme: ${colorScheme}`);
+
   mainWindow.webContents.executeJavaScript(`
     document.documentElement.setAttribute('data-color-scheme', '${colorScheme}');
   `);
@@ -176,14 +213,20 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   applyColorScheme();
-  
-  // Apply always on top setting
+
+  // Get settings
   const settings = getSettings();
-  const alwaysOnTop = settings.alwaysOnTop === 'no' ? false : true;
+  const runOnStartup = settings.runOnStartup === 'yes';
+  const alwaysOnTop = settings.alwaysOnTop === 'yes';
+  
+  // Set app to run on startup
+  app.setLoginItemSettings({ openAtLogin: runOnStartup });
+
+  // Apply always on top setting
   mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating');
   
   // Register shortcut from settings
-  const shortcut = settings.shortcut || 'Win+Space';
+  const shortcut = settings.shortcut || 'Shift+Space';
   const ret = globalShortcut.register(shortcut, toggleWindow);
   if (ret) {
     console.log(`Shortcut ${shortcut} registered successfully`);
@@ -215,10 +258,7 @@ let conversationHistory = store.get('conversationHistory') || [];
 
 // Get settings from store
 function getSettings() {
-  return store.get('settings') || {
-    apiUrl: 'http://localhost:11434',
-    selectedModel: 'llama3.2'
-  };
+  return store.get('settings') || defaultSettings;
 }
 
 // Handle Ollama API calls
@@ -232,8 +272,8 @@ ipcMain.handle('chat-message', async (event, message) => {
     
     // Get current settings
     const settings = getSettings();
-    const apiUrl = settings.apiUrl || 'http://localhost:11434';
-    const model = settings.selectedModel || 'llama3.2';
+    const apiUrl = settings.apiUrl || defaultSettings.apiUrl;
+    const model = settings.selectedModel || defaultSettings.selectedModel;
     
     // Debug log to see which model is being used
     console.log(`Using model: ${model} for chat request`);
@@ -309,6 +349,12 @@ ipcMain.handle('save-setting', (event, key, value) => {
     applyColorScheme();
   }
 
+  // Apply run on startup if changed
+  if (key === 'runOnStartup') {
+    const runOnStartup = value === 'yes';
+    app.setLoginItemSettings({ openAtLogin: runOnStartup });
+  }
+
   // Apply always on top if changed
   if (key === 'alwaysOnTop') {
     const alwaysOnTop = value === 'yes';
@@ -345,7 +391,7 @@ ipcMain.handle('open-settings', () => {
 ipcMain.handle('get-available-models', async () => {
   try {
     const settings = getSettings();
-    const apiUrl = settings.apiUrl || 'http://localhost:11434';
+    const apiUrl = settings.apiUrl || defaultSettings.apiUrl;
     
     const response = await fetch(`${apiUrl}/api/tags`);
     const data = await response.json();
@@ -355,7 +401,7 @@ ipcMain.handle('get-available-models', async () => {
       const sortedModels = data.models.map(model => model.name).sort();
       
       // If we don't have a selected model yet, set the first available one as default
-      if (sortedModels.length > 0 && (!settings.selectedModel || settings.selectedModel === 'llama3.2')) {
+      if (sortedModels.length > 0 && (!settings.selectedModel || settings.selectedModel === defaultSettings.selectedModel)) {
         const currentSettings = getSettings();
         currentSettings.selectedModel = sortedModels[0];
         store.set('settings', currentSettings);
