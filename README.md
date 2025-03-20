@@ -73,6 +73,12 @@ To start the application in development mode with hot reload:
 $ npm run dev
 ```
 
+To start the application with inspect screen:
+
+```sh
+$ $env:NODE_ENV="development"; npm run dev
+```
+
 ## Build
 
 To build the application for Windows:

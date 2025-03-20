@@ -209,34 +209,52 @@ function applyColorScheme() {
   }
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
-  applyColorScheme();
+const gotTheLock = app.requestSingleInstanceLock();
 
-  // Get settings
-  const settings = getSettings();
-  const runOnStartup = settings.runOnStartup === 'yes';
-  const alwaysOnTop = settings.alwaysOnTop === 'yes';
-  
-  // Set app to run on startup
-  app.setLoginItemSettings({ openAtLogin: runOnStartup });
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 
-  // Apply always on top setting
-  mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating');
-  
-  // Register shortcut from settings
-  const shortcut = settings.shortcut || 'Shift+Space';
-  const ret = globalShortcut.register(shortcut, toggleWindow);
-  if (ret) {
-    console.log(`Shortcut ${shortcut} registered successfully`);
-  } else {
-    console.log(`Failed to register shortcut: ${shortcut}`);
-    // Fallback shortcut
-    globalShortcut.register('CommandOrControl+Alt+O', toggleWindow);
-    console.log('Registered fallback shortcut: Ctrl+Alt+O');
-  }
-});
+  // Create myWindow, load the rest of the app, etc...
+  app.whenReady().then(() => {
+    createWindow();
+    createTray();
+    applyColorScheme();
+
+    // Get settings
+    const settings = getSettings();
+    const runOnStartup = settings.runOnStartup === 'yes';
+    const alwaysOnTop = settings.alwaysOnTop === 'yes';
+    
+    // Set app to run on startup
+    app.setLoginItemSettings({
+      openAtLogin: runOnStartup,
+      openAsHidden: true,
+    });
+
+    // Apply always on top setting
+    mainWindow.setAlwaysOnTop(alwaysOnTop, 'floating');
+    
+    // Register shortcut from settings
+    const shortcut = settings.shortcut || 'Shift+Space';
+    const ret = globalShortcut.register(shortcut, toggleWindow);
+    if (ret) {
+      console.log(`Shortcut ${shortcut} registered successfully`);
+    } else {
+      console.log(`Failed to register shortcut: ${shortcut}`);
+      // Fallback shortcut
+      globalShortcut.register('CommandOrControl+Alt+O', toggleWindow);
+      console.log('Registered fallback shortcut: Ctrl+Alt+O');
+    }
+  });
+}
 
 app.on('will-quit', () => {
   // Unregister all shortcuts when app is about to quit
@@ -352,7 +370,10 @@ ipcMain.handle('save-setting', (event, key, value) => {
   // Apply run on startup if changed
   if (key === 'runOnStartup') {
     const runOnStartup = value === 'yes';
-    app.setLoginItemSettings({ openAtLogin: runOnStartup });
+    app.setLoginItemSettings({
+      openAtLogin: runOnStartup,
+      openAsHidden: true,
+    });
   }
 
   // Apply always on top if changed
